@@ -4,7 +4,7 @@ import numpy as np
 from tensorflow.keras.models import load_model
 
 img_size = 150
-model = load_model('pneumonia_cnn_model.h5')
+model = load_model('first_data/pneumonia_cnn_model.h5')
 
 st.title("Pneumonia Detection from Chest X-Ray")
 st.write("Upload a chest X-ray image (JPEG/PNG, grayscale or color).")

@@ -5,8 +5,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="8e388092-7177-48fb-9a94-9aaca4de9d76" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/test_gpu.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/first_data/pneumonia_cnn_model.h5" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/Chest_X-Ray_Analysis_for_Pneumonia_Detection.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/Chest_X-Ray_Analysis_for_Pneumonia_Detection.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/app.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test_gpu.py" beforeDir="false" afterPath="$PROJECT_DIR$/test_gpu.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -43,6 +47,11 @@
     &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;
   }
 }</component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\fgf62\PycharmProjects\Chest_X-Ray_Analysis_for_Pneumonia_Detection\first_data" />
+    </key>
+  </component>
   <component name="RunManager" selected="Python.test_gpu">
     <configuration name="app" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="Chest_X-Ray_Analysis_for_Pneumonia_Detection" />
