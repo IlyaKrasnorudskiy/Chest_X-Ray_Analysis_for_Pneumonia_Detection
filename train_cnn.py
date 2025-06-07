@@ -1,180 +1,87 @@
-import os
-import cv2
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-
 import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Conv2D, MaxPool2D, Flatten, Dropout, BatchNormalization
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.callbacks import ReduceLROnPlateau
-from sklearn.metrics import classification_report
+import os
+import numpy as np
+from data_loader import get_training_data, prepare_data, create_data_generators
+from model import create_model
+from training import compile_model, train_model, evaluate_model
+from utils import (plot_class_distribution, plot_sample_images, 
+                  plot_training_history, plot_confusion_matrix, plot_roc_curve)
 
-# Проверка и настройка GPU (если есть)
-gpus = tf.config.list_physical_devices('GPU')
-if gpus:
-    print("GPUs found:", gpus)
-    try:
-        for gpu in gpus:
-            tf.config.experimental.set_memory_growth(gpu, True)
-        tf.config.set_visible_devices(gpus[0], 'GPU')
-        print("Using GPU:", gpus[0])
-    except RuntimeError as e:
-        print(e)
-else:
-    print("No GPU found, using CPU.")
+# Конфигурация
+IMG_SIZE = 150
+BATCH_SIZE = 32
+EPOCHS = 12
+LEARNING_RATE = 0.0001
 
-labels = ['PNEUMONIA', 'NORMAL']
-img_size = 150
+def main():
+    # Проверка GPU
+    physical_devices = tf.config.list_physical_devices('GPU')
+    if len(physical_devices) > 0:
+        print(f"GPUs available: {[d.name for d in physical_devices]}")
+        try:
+            for gpu in physical_devices:
+                tf.config.experimental.set_memory_growth(gpu, True)
+        except Exception as e:
+            print(f"Could not set memory growth: {e}")
+    else:
+        print("WARNING: GPU not found! Вычисления будут идти на CPU.")
+    
+    # Загрузка данных
+    print("\nLoading data...")
+    train_data = get_training_data('chest_xray/train', IMG_SIZE)
+    val_data = get_training_data('chest_xray/val', IMG_SIZE)
+    test_data = get_training_data('chest_xray/test', IMG_SIZE)
+    
+    # Визуализация данных
+    print("\nVisualizing data distribution...")
+    plot_class_distribution(train_data)
+    plot_sample_images(train_data)
+    
+    # Подготовка данных
+    print("\nPreparing data...")
+    x_train, y_train, x_val, y_val, x_test, y_test = prepare_data(
+        train_data, val_data, test_data, IMG_SIZE
+    )
+    
+    # Создание генераторов данных
+    print("\nCreating data generators...")
+    train_generator, val_generator = create_data_generators(
+        x_train, y_train, x_val, y_val, BATCH_SIZE
+    )
+    
+    # Создание и компиляция модели
+    print("\nCreating and compiling model...")
+    model = create_model(IMG_SIZE)
+    model = compile_model(model, LEARNING_RATE)
+    
+    # Вычисление весов классов
+    print("\nComputing class weights...")
+    class_weights = {
+        0: len(y_train) / (2 * np.sum(y_train == 0)),
+        1: len(y_train) / (2 * np.sum(y_train == 1))
+    }
+    
+    # Обучение модели
+    print("\nTraining model...")
+    history = train_model(
+        model, train_generator, val_generator,
+        x_train, x_val, y_val, class_weights,
+        EPOCHS, BATCH_SIZE
+    )
+    
+    # Визуализация истории обучения
+    print("\nPlotting training history...")
+    plot_training_history(history)
+    
+    # Оценка модели
+    print("\nEvaluating model...")
+    loss, accuracy, predictions = evaluate_model(model, x_test, y_test)
+    
+    # Визуализация результатов
+    print("\nPlotting evaluation results...")
+    plot_confusion_matrix(y_test, predictions)
+    plot_roc_curve(y_test, model.predict(x_test))
 
-def get_training_data(data_dir):
-    data = []
-    for label in labels:
-        path = os.path.join(data_dir, label)
-        class_num = labels.index(label)
-        for img in os.listdir(path):
-            try:
-                img_path = os.path.join(path, img)
-                if not img.lower().endswith(('.png', '.jpg', '.jpeg')):
-                    print(f"Skipping non-image file: {img_path}")
-                    continue
-                img_arr = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-                if img_arr is None:
-                    print(f"Failed to load image: {img_path}")
-                    continue
-                resized_arr = cv2.resize(img_arr, (img_size, img_size))
-                data.append([resized_arr, class_num])
-            except Exception as e:
-                print(f"Error processing {img_path}: {e}")
-    return data
-
-# Загрузка данных (укажите свои пути)
-train = get_training_data('chest_xray/train')
-val = get_training_data('chest_xray/val')
-test = get_training_data('chest_xray/test')
-
-# Визуализация распределения классов
-l = ['Pneumonia' if i[1] == 0 else 'Normal' for i in train]
-sns.set_style('darkgrid')
-plt.figure(figsize=(6,4))
-sns.countplot(l)
-plt.title('Class distribution in training set')
-plt.show()
-
-# Визуализация примеров
-plt.figure(figsize=(5,5))
-plt.imshow(train[0][0], cmap='gray')
-plt.title(labels[train[0][1]])
-plt.show()
-
-plt.figure(figsize=(5,5))
-plt.imshow(train[-1][0], cmap='gray')
-plt.title(labels[train[-1][1]])
-plt.show()
-
-# Разделение на признаки и метки
-x_train = np.array([item[0] for item in train]) / 255.0
-y_train = np.array([item[1] for item in train])
-
-x_val = np.array([item[0] for item in val]) / 255.0
-y_val = np.array([item[1] for item in val])
-
-x_test = np.array([item[0] for item in test]) / 255.0
-y_test = np.array([item[1] for item in test])
-
-# Изменение формы для CNN
-x_train = x_train.reshape(-1, img_size, img_size, 1)
-x_val = x_val.reshape(-1, img_size, img_size, 1)
-x_test = x_test.reshape(-1, img_size, img_size, 1)
-
-# Аугментация данных
-datagen = ImageDataGenerator(
-    rotation_range=30,
-    zoom_range=0.2,
-    width_shift_range=0.1,
-    height_shift_range=0.1,
-    horizontal_flip=True,
-    vertical_flip=False
-)
-datagen.fit(x_train)
-
-# Создание модели
-model = Sequential([
-    Conv2D(32, (3,3), activation='relu', padding='same', input_shape=(img_size, img_size, 1)),
-    BatchNormalization(),
-    MaxPool2D((2,2), padding='same'),
-
-    Conv2D(64, (3,3), activation='relu', padding='same'),
-    Dropout(0.1),
-    BatchNormalization(),
-    MaxPool2D((2,2), padding='same'),
-
-    Conv2D(64, (3,3), activation='relu', padding='same'),
-    BatchNormalization(),
-    MaxPool2D((2,2), padding='same'),
-
-    Conv2D(128, (3,3), activation='relu', padding='same'),
-    Dropout(0.2),
-    BatchNormalization(),
-    MaxPool2D((2,2), padding='same'),
-
-    Conv2D(256, (3,3), activation='relu', padding='same'),
-    Dropout(0.2),
-    BatchNormalization(),
-    MaxPool2D((2,2), padding='same'),
-
-    Flatten(),
-    Dense(128, activation='relu'),
-    Dropout(0.2),
-    Dense(1, activation='sigmoid')
-])
-
-model.compile(optimizer='rmsprop', loss='binary_crossentropy', metrics=['accuracy'])
-model.summary()
-
-# Коллбек для уменьшения learning rate при застое
-learning_rate_reduction = ReduceLROnPlateau(monitor='val_accuracy', patience=2, verbose=1, factor=0.3, min_lr=1e-6)
-
-# Обучение модели
-history = model.fit(
-    datagen.flow(x_train, y_train, batch_size=32),
-    epochs=12,
-    validation_data=datagen.flow(x_val, y_val),
-    callbacks=[learning_rate_reduction]
-)
-
-# Оценка модели
-loss, accuracy = model.evaluate(x_test, y_test)
-print(f"Test Loss: {loss:.4f}")
-print(f"Test Accuracy: {accuracy*100:.2f}%")
-
-# Предсказания (замена устаревшего predict_classes)
-predictions = (model.predict(x_test) > 0.5).astype("int32").reshape(-1)
-print(classification_report(y_test, predictions, target_names=['Pneumonia (Class 0)', 'Normal (Class 1)']))
-
-# Сохранение модели
-model.save('pneumonia_cnn_model.h5')
-
-# Визуализация результатов обучения
-epochs = range(1, len(history.history['accuracy']) + 1)
-
-plt.figure(figsize=(14,5))
-
-plt.subplot(1,2,1)
-plt.plot(epochs, history.history['accuracy'], 'go-', label='Training Accuracy')
-plt.plot(epochs, history.history['val_accuracy'], 'ro-', label='Validation Accuracy')
-plt.title('Training & Validation Accuracy')
-plt.xlabel('Epochs')
-plt.ylabel('Accuracy')
-plt.legend()
-
-plt.subplot(1,2,2)
-plt.plot(epochs, history.history['loss'], 'go-', label='Training Loss')
-plt.plot(epochs, history.history['val_loss'], 'ro-', label='Validation Loss')
-plt.title('Training & Validation Loss')
-plt.xlabel('Epochs')
-plt.ylabel('Loss')
-plt.legend()
-
-plt.show()
+if __name__ == "__main__":
+    print(tf.__version__)
+    main()
